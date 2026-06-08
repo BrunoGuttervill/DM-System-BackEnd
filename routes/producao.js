@@ -1,6 +1,9 @@
 import express from 'express';
 const router = express.Router();
 import {insumos} from './insumos.js';
+import {pizzas} from './produtos.js';
+
+const producoes = [];
 
 const receitas = [
     {pizzaId: 1 , insumos: [
@@ -40,16 +43,51 @@ router.post('/', (req, res) => {
         return res.status(404).json({error: 'Receita não encontrada para a pizzaId fornecida.'});
     }
 
+    const consumidos = [];
+
     // Passa por cada ingrediente da receita e diminui do estoque global (insumos)
     ficha.insumos.forEach(item => {
         const insumo = insumos.find(i => i.id === item.insumosId);
         if (insumo) { // Verificação de segurança caso o insumoId não exista na lista de insumos
             const usados = item.qtd * quantidade;
             insumo.qtdAtual -= usados;
+            consumidos.push(`${usados}${insumo.unidade} de ${insumo.nome}`);
         }
     });
-       
-    res.json(insumos);    
+
+    const consumidosTexto = consumidos.join(', ');
+
+
+    const produto = pizzas.find(p => p.id === pizzaId);
+
+    const novaOrdem = {
+        id: producoes.length + 1,
+        pizzaId: pizzaId,
+        qtd : quantidade,
+        produto : produto.nome,
+        responsavel: req.body.responsavel,
+        insumos : consumidosTexto,
+        data: new Date().toISOString()
+    };
+    producoes.push(novaOrdem);
+    
+    res.status(201).json(novaOrdem)
+});
+
+
+router.get('/', (req, res) => {
+
+    res.json(producoes);
+});
+
+router.get('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const producao = producoes.find(p => p.id === id);
+
+    if(!producao){
+        return res.status(404).json({error: 'Produção não encontrada.'});
+    }   
+    res.json(producao);
 });
 
 export default router;
