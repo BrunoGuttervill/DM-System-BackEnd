@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 
-const pizzas = [
+export const pizzas = [
     {id: 1,  nome: 'Calabresa',           tipo: 'Salgada',  sabores: ['Calabresa'], qtd: 6,  precoVarejo: 30.00, precoAtacado: 24.00, status: 'ok',},
     {id: 2,  nome: 'Frango com Catupiry', tipo: 'Salgada',  sabores: ['Frango', 'Catupiry'], qtd: 10, precoVarejo: 35.00, precoAtacado: 28.00, status: 'ok'},
     {id: 3,  nome: 'Portuguesa',          tipo: 'Salgada',  sabores: ['Portuguesa'], qtd: 1,  precoVarejo: 32.00, precoAtacado: 25.60, status: 'critico'},
@@ -17,6 +17,16 @@ const pizzas = [
 // Retorna a lista completa de todas as pizzas cadastradas no sistema. 
 router.get('/', (req, res) => {
     res.json(pizzas);
+});
+
+router.get('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const pizza = pizzas.find(p => p.id === id);
+
+    if(!pizza){
+        return res.status(404).json({error: 'Pizza não encontrada.'});
+    }
+    res.json(pizza);
 });
 
 

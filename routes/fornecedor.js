@@ -13,6 +13,17 @@ router.get('/', (req, res) => {
     res.json(fornecedores);
 });
 
+router.get('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const fornecedor = fornecedores.find(f => f.id === id);
+
+    if(!fornecedor){
+        return res.status(404).json({error: 'Fornecedor não encontrado.'});
+    }
+
+    res.json(fornecedor);
+});
+
 
 //cadastro de um novo fornecedor no sistema.
 router.post('/', (req, res) => {

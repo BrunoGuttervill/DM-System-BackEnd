@@ -16,6 +16,18 @@ router.get('/', (req, res) => {
     res.json(insumos);
 });
 
+router.get('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const insumo = insumos.find(i => i.id === id);
+
+    if(!insumo){
+        return res.status(404).json({error: 'Insumo não encontrado.'});
+    }
+
+    res.json(insumo);
+});
+
+
 //Cadastra um novo insumo (ingrediente) no estoque.
 router.post('/', (req, res) => {
     const camposObrigatorios = ['nome', 'qtdAtual', 'unidade', 'categoria', 'qtdMinima', 'validade', 'status'];
