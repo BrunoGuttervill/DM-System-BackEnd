@@ -41,13 +41,30 @@ npm run dev
 
 ## Endpoints
 
-| Método | Rota                  | Descrição                    |
-|--------|-----------------------|------------------------------|
-| GET    | /api/insumos          | Listar matérias-primas       |
-| POST   | /api/insumos          | Cadastrar insumo             |
-| GET    | /api/produtos         | Listar produtos acabados     |
-| POST   | /api/producao         | Registrar ordem de produção  |
-| GET    | /api/fornecedores     | Listar fornecedores          |
-| GET    | /api/alertas          | Buscar alertas ativos        |
+| Método | Rota                   | Descrição                                |
+|--------|------------------------|------------------------------------------|
+| GET    | /api/produtos/:id      | Busca uma pizza pelo id                  |
+| POST   | /api/produtos          | Cadastra uma nova pizza                  |
+| PUT    | /api/produtos/:id      | Atualiza uma pizza existente             |
+| DELETE | /api/produtos/:id      | Remove uma pizza                         |
+| GET    | /api/insumos/:id       | Busca um insumo pelo id                  |
+| PUT    | /api/insumos/:id       | Atualiza um insumo                       |
+| DELETE | /api/insumos/:id       | Remove um insumo                         |
+| GET    | /api/fornecedores/:id  | Busca um fornecedor pelo id              |
+| POST   | /api/fornecedores      | Cadastra um novo fornecedor              |
+| PUT    | /api/fornecedores/:id  | Atualiza um fornecedor                   |
+| DELETE | /api/fornecedores/:id  | Remove um fornecedor                     |
+| GET    | /api/producao          | Lista o histórico de ordens de produção  |
 
 ## Estrutura do Projeto
+
+DM-BACKEND/
+├── server.js           # ponto de entrada — sobe o app e plugue os routers
+├── package.json
+├── .gitignore
+└── routes/
+    ├── produtos.js     # rotas e dados de pizzas
+    ├── insumos.js      # rotas e dados de insumos (estoque)
+    ├── fornecedores.js # rotas e dados de fornecedores
+    └── producao.js     # rota de produção e histórico
+
