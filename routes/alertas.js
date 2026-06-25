@@ -8,7 +8,7 @@ router.get('/', (req, res) => {
     const alertas = [];
 
     insumos.forEach(insumo => {
-        if (insumo.qtdAtual < insumo.qtdMinima / 2) {
+        if (insumo.qtdAtual < insumo.qtdMin / 2) {
             alertas.push({
                 id: alertas.length + 1,
                 tipo: 'critico',
@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
             })
         }
 
-        else if (insumo.qtdAtual < insumo.qtdMinima) {
+        else if (insumo.qtdAtual < insumo.qtdMin) {
             alertas.push({
                 id: alertas.length + 1,
                 tipo: 'atencao',
