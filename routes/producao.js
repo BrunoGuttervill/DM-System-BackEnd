@@ -1,99 +1,91 @@
 import express from 'express';
 const router = express.Router();
-import { insumos } from './insumos.js';
+import db from '../db.js'
 
 
-const producoes = [];
 
-const receitas = [
-    {
-        pizzaId: 1, insumos: [
-            { insumosId: 1, qtd: 0.3 },
-            { insumosId: 2, qtd: 0.1 },
-            { insumosId: 3, qtd: 0.2 },
-            { insumosId: 4, qtd: 0.15 },
-        ]
-    },
-    {
-        pizzaId: 2, insumos: [
-            { insumosId: 1, qtd: 0.1 },
-            { insumosId: 2, qtd: 0.1 },
-            { insumosId: 3, qtd: 0.1 },
-            { insumosId: 5, qtd: 0.1 },
-            { insumosId: 6, qtd: 0.1 },
-            { insumosId: 7, qtd: 0.1 },
-        ]
+router.get('/', async (req, res) => {
+
+    const [rows] = await db.query('SELECT * FROM producoes');
+    res.json(rows);
+});
+
+router.get('/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    const [rows] = await db.query('SELECT * FROM producoes WHERE id = ?', [id])
+
+    if (rows.length === 0) {
+        return res.status(404).json({ error: 'Produção não encontrada.' });
     }
-];
-
+    res.json(rows[0]);
+});
 
 
 //Simula a produção de pizzas, abatendo a quantidade necessária de insumos do estoque com base na receita.
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
+    const camposObrigatorios = ['pizzaId', 'quantidade', 'responsavel']
+    const faltando = camposObrigatorios.find(campo => !req.body[campo]);
 
-    res.status(501).json({ error: 'Rota temporariamente indisponível durante refatoração para MySQL' })
-    const pizzaId = req.body.pizzaId;
-    const quantidade = req.body.quantidade;
-
-    if (!pizzaId) {
-        return res.status(400).json({ error: 'O campo pizzaId é obrigatório.' });
-    }
-    if (!quantidade) {
-        return res.status(400).json({ error: 'O campo quantidade é obrigatório.' });
+    if (faltando) {
+        return res.status(400).json({ error: `O campo ${faltando} é obrigatório.` });
     }
 
-    // Busca a ficha técnica (receita) da pizza informada
-    const ficha = receitas.find(r => r.pizzaId === pizzaId);
+    const { pizzaId, quantidade, responsavel } = req.body;
 
-    if (!ficha) {
-        return res.status(404).json({ error: 'Receita não encontrada para a pizzaId fornecida.' });
+    const [pizzasResult] = await db.query('SELECT * FROM pizzas WHERE id = ?', [pizzaId]);
+    if (pizzasResult.length === 0) {
+        return res.status(404).json({ error: 'Pizza não encontrada.' });
+    }
+    const pizza = pizzasResult[0];
+
+    const [receita] = await db.query(
+        `SELECT r.qtdPorUnidade, i.id AS insumoId, i.nome, i.unidade, i.qtdAtual
+         FROM receitas r
+         JOIN insumos i ON r.insumoId = i.id
+         WHERE r.pizzaId = ?`,
+        [pizzaId]
+    );
+
+    if (receita.length === 0) {
+        return res.status(404).json({ error: 'Receita não regiustrada pra esta pizza.' })
+    }
+
+    for (const ingrediente of receita) {
+        const qtdTotal = ingrediente.qtdPorUnidade * quantidade;
+
+        if (qtdTotal > ingrediente.qtdAtual) {
+            return res.status(400).json({
+                error: `Estoque insuficiente para o insumo ${ingrediente.nome}`,
+                sugestao: `Faltam ${qtdTotal - ingrediente.qtdAtual} unidades`
+            });
+        }
     }
 
     const consumidos = [];
+    for (const ingrediente of receita) {
+        const qtdTotal = ingrediente.qtdPorUnidade * quantidade;
 
-    // Passa por cada ingrediente da receita e diminui do estoque global (insumos)
-    ficha.insumos.forEach(item => {
-        const insumo = insumos.find(i => i.id === item.insumosId);
-        if (insumo) { // Verificação de segurança caso o insumoId não exista na lista de insumos
-            const usados = item.qtd * quantidade;
-            insumo.qtdAtual -= usados;
-            consumidos.push(`${usados}${insumo.unidade} de ${insumo.nome}`);
-        }
-    });
+        await db.query(
+            'UPDATE insumos SET qtdAtual = qtdAtual - ? WHERE id = ?',
+            [qtdTotal, ingrediente.insumoId]
+        );
 
-    const consumidosTexto = consumidos.join(', ');
-
-
-    const produto = pizzas.find(p => p.id === pizzaId);
-
-    const novaOrdem = {
-        id: producoes.length + 1,
-        pizzaId: pizzaId,
-        qtd: quantidade,
-        produto: produto.nome,
-        responsavel: req.body.responsavel,
-        insumos: consumidosTexto,
-        data: new Date().toISOString()
-    };
-    producoes.push(novaOrdem);
-
-    res.status(201).json(novaOrdem)
-});
-
-
-router.get('/', (req, res) => {
-
-    res.json(producoes);
-});
-
-router.get('/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const producao = producoes.find(p => p.id === id);
-
-    if (!producao) {
-        return res.status(404).json({ error: 'Produção não encontrada.' });
+        consumidos.push(`${qtdTotal} ${ingrediente.unidade} de ${ingrediente.nome}`);
     }
-    res.json(producao);
+
+    const insumosTexto = consumidos.join(', ');
+
+    const [result] = await db.query(
+        `INSERT INTO producoes (pizzaId, produto, qtd, responsavel, insumos)
+         VALUES (?, ?, ?, ?, ?)`,
+        [pizzaId, pizza.nome, quantidade, responsavel, insumosTexto]
+    );
+
+    const [novaProducao] = await db.query('SELECT * FROM producoes WHERE id = ?', [result.insertId]);
+
+    res.status(201).json(novaProducao[0]);
 });
+
+
 
 export default router;
