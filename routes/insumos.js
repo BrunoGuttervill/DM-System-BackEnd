@@ -1,35 +1,28 @@
 import express from 'express';
 const router = express.Router();
+import db from '../db.js';
 
-export const insumos = [
-    { id: 1, nome: 'farinha', qtdAtual: 10, unidade: 'kg', categoria: 'teste', qtdMin: 20, validade: '2024-12-31', status: 'critico' },
-    { id: 2, nome: 'molho de tomate', qtdAtual: 50, unidade: 'l', categoria: 'teste', qtdMin: 10, validade: '2024-12-31', status: 'ok' },
-    { id: 3, nome: 'queijo', qtdAtual: 80, unidade: 'kg', categoria: 'teste', qtdMin: 15, validade: '2024-12-31', status: 'ok' },
-    { id: 4, nome: 'calabresa', qtdAtual: 10, unidade: 'kg', categoria: 'teste', qtdMin: 10, validade: '2024-12-31', status: 'ok' },
-    { id: 5, nome: 'frango', qtdAtual: 4, unidade: 'kg', categoria: 'teste', qtdMin: 5, validade: '2024-12-31', status: 'critico' },
-    { id: 6, nome: 'catupiry', qtdAtual: 30, unidade: 'kg', categoria: 'teste', qtdMin: 5, validade: '2024-12-31', status: 'ok' },
-    { id: 7, nome: 'milho', qtdAtual: 2, unidade: 'kg', categoria: 'teste', qtdMin: 5, validade: '2024-12-31', status: 'critico' },
-];
 
 // Retorna a lista completa de todos os insumos (ingredientes) do estoque.
-router.get('/', (req, res) => {
-    res.json(insumos);
+router.get('/', async (req, res) => {
+    const [rows] = await db.query('SELECT * FROM insumos');
+    res.json(rows);
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
     const id = parseInt(req.params.id);
-    const insumo = insumos.find(i => i.id === id);
+    const [rows] = await db.query('SELECT * FROM insumos WHERE id = ?', [id]);
 
-    if (!insumo) {
+    if (rows.length === 0) {
         return res.status(404).json({ error: 'Insumo não encontrado.' });
     }
 
-    res.json(insumo);
+    res.json(rows[0]);
 });
 
 
 //Cadastra um novo insumo (ingrediente) no estoque.
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     const camposObrigatorios = ['nome', 'qtdAtual', 'unidade', 'categoria', 'qtdMin', 'validade', 'status'];
     const faltando = camposObrigatorios.find(campo => !req.body[campo]);
 
@@ -37,50 +30,85 @@ router.post('/', (req, res) => {
         return res.status(400).json({ error: `O campo ${faltando} é obrigatório.` });
     }
 
-    const id = insumos.length + 1;
-    const novoInsumos = {
-        id: id,
-        nome: req.body.nome,
-        qtdAtual: req.body.qtdAtual,
-        unidade: req.body.unidade,
-        categoria: req.body.categoria,
-        qtdMin: req.body.qtdMin,
-        validade: req.body.validade,
-        status: req.body.status
-    };
+    const [result] = await db.query('INSERT INTO insumos (nome, qtdAtual, unidade, categoria, qtdMin, validade, status) VALUES (?,?,?,?,?,?,?)', [
+        req.body.nome,
+        req.body.qtdAtual,
+        req.body.unidade,
+        req.body.categoria,
+        req.body.qtdMin,
+        req.body.validade,
+        req.body.status
+    ]);
 
-    insumos.push(novoInsumos);
-    res.status(201).json(novoInsumos);
+    const idGerado = result.insertId;
+
+    const [rows] = await db.query('SELECT * FROM insumos WHERE id = ?', [idGerado]);
+
+    res.status(201).json(rows[0]);
 });
 
 
-router.put('/:id', (req, res) => {
-    const insumoId = parseInt(req.params.id);
-    const insumo = insumos.find(i => i.id === insumoId);
+router.put('/:id', async (req, res) => {
+    const campos = [];
+    const valores = [];
+    const id = parseInt(req.params.id);
 
-    if (!insumo) {
+    if (req.body.nome !== undefined) {
+        campos.push('nome = ?');
+        valores.push(req.body.nome);
+    }
+    if (req.body.qtdAtual !== undefined) {
+        campos.push('qtdAtual = ?');
+        valores.push(req.body.qtdAtual);
+    }
+    if (req.body.unidade !== undefined) {
+        campos.push('unidade = ?');
+        valores.push(req.body.unidade);
+    }
+    if (req.body.categoria !== undefined) {
+        campos.push('categoria = ?');
+        valores.push(req.body.categoria);
+    }
+    if (req.body.qtdMin !== undefined) {
+        campos.push('qtdMin = ?');
+        valores.push(req.body.qtdMin);
+    }
+    if (req.body.validade !== undefined) {
+        campos.push('validade = ?');
+        valores.push(req.body.validade);
+    }
+    if (req.body.status !== undefined) {
+        campos.push('status = ?');
+        valores.push(req.body.status);
+    }
+
+    if (campos.length === 0) {
+        return res.status(400).json({ error: 'Nenhum campo para atualizar.' });
+    }
+
+    const set = campos.join(', ');
+
+    const query = `UPDATE insumos SET ${set} WHERE id = ?`;
+    valores.push(id);
+
+    const [result] = await db.query(query, valores);
+
+    if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'Insumo não encontrado.' });
     }
 
-    insumo.nome = req.body.nome || insumo.nome;
-    insumo.qtdAtual = req.body.qtdAtual || insumo.qtdAtual;
-    insumo.unidade = req.body.unidade || insumo.unidade;
-    insumo.categoria = req.body.categoria || insumo.categoria;
-    insumo.qtdMin = req.body.qtdMin || insumo.qtdMin;
-    insumo.validade = req.body.validade || insumo.validade;
-    insumo.status = req.body.status || insumo.status;
-    res.json(insumo);
+    const [rows] = await db.query('SELECT * FROM insumos WHERE id = ?', [id]);
+    res.status(200).json(rows[0]);
 });
 
-router.delete('/:id', (req, res) => {
-    const insumoId = parseInt(req.params.id);
-    const index = insumos.findIndex(i => i.id === insumoId);
+router.delete('/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    const [result] = await db.query('DELETE FROM insumos WHERE id = ?', [id]);
 
-    if (index === -1) {
+    if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'Insumo não encontrado.' });
     }
 
-    insumos.splice(index, 1);
     res.status(204).send();
 });
 
