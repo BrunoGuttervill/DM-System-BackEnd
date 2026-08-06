@@ -4,7 +4,6 @@ import db from '../db.js';
 
 
 
-//Retorna a lista completa de todos os fornecedores cadastrados no sistema.
 router.get('/', async (req, res) => {
     const [rows] = await db.query('SELECT * FROM fornecedores');
 

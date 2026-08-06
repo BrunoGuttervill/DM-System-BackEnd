@@ -7,12 +7,12 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     const [rows] = await db.query('SELECT * FROM  insumos WHERE qtdAtual < qtdMin');
 
-    const alertas = rows.map(insumos => ({
-        id: insumos.id,
-        tipo: insumos.qtdAtual < insumos.qtdMin / 2 ? 'critico' : 'atencao',
-        icon: insumos.qtdAtual < insumos.qtdMin / 2 ? '🔴' : '🟡',
-        titulo: `${insumos.nome} - Estoque baixo`,
-        desc: `${insumos.nome} possui apenas ${insumos.qtdAtual} ${insumos.unidade} restantes em estoque.`,
+    const alertas = rows.map(insumo => ({
+        id: insumo.id,
+        tipo: insumo.qtdAtual < insumo.qtdMin / 2 ? 'critico' : 'atencao',
+        icon: insumo.qtdAtual < insumo.qtdMin / 2 ? 'critico' : 'atencao',  // ← muda emoji pra chave
+        titulo: `${insumo.nome} - Estoque baixo`,
+        desc: `${insumo.nome} possui apenas ${insumo.qtdAtual} ${insumo.unidade} restantes em estoque.`,
     }))
 
     res.json(alertas)
