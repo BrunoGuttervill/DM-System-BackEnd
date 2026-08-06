@@ -7,7 +7,9 @@ const db = await mysql.createPool({
     user: 'root',
     database: 'dany_massas',
     password: 'Lruthes907',
-    dateStrings: true
+    dateStrings: true,
+    decimalNumbers: true
+
 })
 
 export default db;

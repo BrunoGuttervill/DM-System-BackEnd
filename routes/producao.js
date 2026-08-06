@@ -64,13 +64,14 @@ router.post('/', async (req, res) => {
     const consumidos = [];
     for (const ingrediente of receita) {
         const qtdTotal = ingrediente.qtdPorUnidade * quantidade;
+        const qtdTotalArredondada = Math.round(qtdTotal * 1000) / 1000;
 
         await db.query(
             'UPDATE insumos SET qtdAtual = qtdAtual - ? WHERE id = ?',
-            [qtdTotal, ingrediente.insumoId]
+            [qtdTotalArredondada, ingrediente.insumoId]
         );
 
-        consumidos.push(`${qtdTotal} ${ingrediente.unidade} de ${ingrediente.nome}`);
+        consumidos.push(`${qtdTotalArredondada} ${ingrediente.unidade} de ${ingrediente.nome}`);
     }
 
     const insumosTexto = consumidos.join(', ');
