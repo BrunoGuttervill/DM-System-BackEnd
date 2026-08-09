@@ -40,9 +40,10 @@ router.post('/', async (req, res) => {
 
     const [receita] = await db.query(
         `SELECT r.qtdPorUnidade, i.id AS insumoId, i.nome, i.unidade, i.qtdAtual
-         FROM receitas r
-         JOIN insumos i ON r.insumoId = i.id
-         WHERE r.pizzaId = ?`,
+        FROM receitas r
+        JOIN insumos i ON r.insumoId = i.id
+        JOIN fichas_tecnicas f ON r.fichaId = f.id
+        WHERE f.pizzaId = ?`,
         [pizzaId]
     );
 
