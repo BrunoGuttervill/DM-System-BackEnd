@@ -30,7 +30,7 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: `O campo ${faltando} é obrigatório.` });
     }
 
-    const { pizzaId, quantidade, responsavel } = req.body;
+    const { pizzaId, quantidade, responsavel, observacoes } = req.body;
 
     const [pizzasResult] = await db.query('SELECT * FROM pizzas WHERE id = ?', [pizzaId]);
     if (pizzasResult.length === 0) {
@@ -77,9 +77,9 @@ router.post('/', async (req, res) => {
     const insumosTexto = consumidos.join(', ');
 
     const [result] = await db.query(
-        `INSERT INTO producoes (pizzaId, produto, qtd, responsavel, insumos)
-         VALUES (?, ?, ?, ?, ?)`,
-        [pizzaId, pizza.nome, quantidade, responsavel, insumosTexto]
+        `INSERT INTO producoes (pizzaId, produto, qtd, responsavel, insumos, observacoes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [pizzaId, pizza.nome, quantidade, responsavel, insumosTexto, observacoes]
     );
 
     const [novaProducao] = await db.query('SELECT * FROM producoes WHERE id = ?', [result.insertId]);
