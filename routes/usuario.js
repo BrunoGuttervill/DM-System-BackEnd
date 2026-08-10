@@ -64,4 +64,45 @@ router.post('/login', async (req, res) => {
     }
 });
 
+router.put('/:id', async (req, res) => {
+    const { id } = req.params;
+    const { nome, email } = req.body;
+
+    if (!nome || !email) {
+        return res.status(400).json({ error: 'Informe nome e e-mail.' });
+    }
+
+    try {
+        const [existente] = await db.query(
+            'SELECT id FROM usuarios WHERE email = ? AND id != ?',
+            [email, id]
+        );
+        if (existente.length > 0) {
+            return res.status(409).json({ error: 'Já existe uma conta cadastrada com esse e-mail.' });
+        }
+
+        await db.query(
+            'UPDATE usuarios SET nome = ?, email = ? WHERE id = ?',
+            [nome, email, id]
+        );
+
+        const [rows] = await db.query(
+            'SELECT id, nome, email, perfil FROM usuarios WHERE id = ?',
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Usuário não encontrado.' });
+        }
+
+        res.json(rows[0]);
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Já existe uma conta cadastrada com esse e-mail.' });
+        }
+        console.error(err);
+        res.status(500).json({ error: 'Não foi possível salvar as alterações. Tente novamente.' });
+    }
+});
+
 export default router;
