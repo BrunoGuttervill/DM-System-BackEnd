@@ -20,8 +20,6 @@ router.get('/:id', async (req, res) => {
     res.json(rows[0]);
 });
 
-
-//Simula a produção de pizzas, abatendo a quantidade necessária de insumos do estoque com base na receita.
 router.post('/', async (req, res) => {
     const camposObrigatorios = ['pizzaId', 'quantidade', 'responsavel']
     const faltando = camposObrigatorios.find(campo => !req.body[campo]);
@@ -86,6 +84,74 @@ router.post('/', async (req, res) => {
     const [novaProducao] = await db.query('SELECT * FROM producoes WHERE id = ?', [result.insertId]);
 
     res.status(201).json(novaProducao[0]);
+});
+
+router.put('/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { quantidade, responsavel, observacoes } = req.body;
+
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const [producaoResult] = await connection.query('SELECT * FROM producoes WHERE id = ?', [id]);
+        if (producaoResult.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: 'Produção não encontrada.' });
+        }
+        const producao = producaoResult[0];
+
+        const diferenca = quantidade - producao.qtd;
+
+        const [receita] = await connection.query(
+            `SELECT r.qtdPorUnidade, i.id AS insumoId, i.nome, i.unidade, i.qtdAtual
+             FROM receitas r
+             JOIN insumos i ON r.insumoId = i.id
+             JOIN fichas_tecnicas f ON r.fichaId = f.id
+             WHERE f.pizzaId = ?`,
+            [producao.pizzaId]
+        );
+
+        if (diferenca > 0) {
+            for (const ing of receita) {
+                const qtdAdicional = ing.qtdPorUnidade * diferenca;
+                if (qtdAdicional > ing.qtdAtual) {
+                    await connection.rollback();
+                    return res.status(400).json({
+                        error: `Estoque insuficiente para aumentar a produção. Falta ${ing.nome}.`
+                    });
+                }
+            }
+        }
+
+        const consumidos = [];
+        for (const ing of receita) {
+            const ajuste = Math.round(ing.qtdPorUnidade * diferenca * 1000) / 1000;
+            await connection.query(
+                'UPDATE insumos SET qtdAtual = qtdAtual - ? WHERE id = ?',
+                [ajuste, ing.insumoId]
+            );
+            const totalNovo = Math.round(ing.qtdPorUnidade * quantidade * 1000) / 1000;
+            consumidos.push(`${totalNovo} ${ing.unidade} de ${ing.nome}`);
+        }
+        const insumosTexto = consumidos.join(', ');
+
+        await connection.query(
+            'UPDATE producoes SET qtd = ?, responsavel = ?, observacoes = ?, insumos = ? WHERE id = ?',
+            [quantidade, responsavel, observacoes, insumosTexto, id]
+        );
+
+        await connection.commit();
+        const [rows] = await connection.query('SELECT * FROM producoes WHERE id = ?', [id]);
+        res.status(200).json(rows[0]);
+
+    } catch (error) {
+        await connection.rollback();
+        res.status(500).json({ error: 'Erro ao editar produção.', detalhe: error.message });
+    } finally {
+        connection.release();
+    }
 });
 
 
