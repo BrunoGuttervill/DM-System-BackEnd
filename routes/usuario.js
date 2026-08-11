@@ -2,6 +2,31 @@ import express from 'express';
 const router = express.Router();
 import db from '../db.js'
 import bcrypt from 'bcrypt';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+
+const pastaUploads = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(pastaUploads)) fs.mkdirSync(pastaUploads, { recursive: true });
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, pastaUploads),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `usuario-${req.params.id}-${Date.now()}${ext}`);
+    },
+});
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Arquivo precisa ser uma imagem.'));
+        }
+        cb(null, true);
+    },
+});
 
 router.post('/', async (req, res) => {
     const {nome, email, senha, perfil} = req.body;
@@ -21,7 +46,7 @@ router.post('/', async (req, res) => {
             [nome, email, senhaHash, perfil]
         );
 
-        const [rows] = await db.query('SELECT id, nome, email, perfil FROM usuarios WHERE id = ?', [result.insertId]);
+        const [rows] = await db.query('SELECT id, nome, email, perfil, fotoUrl FROM usuarios WHERE id = ?', [result.insertId]);
         res.status(201).json(rows[0]);
     } catch (err) {
         if (err.code === 'ER_DUP_ENTRY') {
@@ -41,7 +66,7 @@ router.post('/login', async (req, res) => {
 
     try {
         const [rows] = await db.query(
-            'SELECT id, nome, email, senhaHash, perfil FROM usuarios WHERE email = ?',
+            'SELECT id, nome, email, senhaHash, perfil, fotoUrl FROM usuarios WHERE email = ?',
             [email]
         );
 
@@ -87,7 +112,7 @@ router.put('/:id', async (req, res) => {
         );
 
         const [rows] = await db.query(
-            'SELECT id, nome, email, perfil FROM usuarios WHERE id = ?',
+            'SELECT id, nome, email, perfil, fotoUrl FROM usuarios WHERE id = ?',
             [id]
         );
 
@@ -134,6 +159,33 @@ router.put('/:id/senha', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Não foi possível trocar a senha. Tente novamente.' });
+    }
+});
+
+router.put('/:id/foto', upload.single('foto'), async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
+        }
+
+        const fotoUrl = `/uploads/${req.file.filename}`;
+        await db.query('UPDATE usuarios SET fotoUrl = ? WHERE id = ?', [fotoUrl, id]);
+
+        const [rows] = await db.query(
+            'SELECT id, nome, email, perfil, fotoUrl FROM usuarios WHERE id = ?',
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Usuário não encontrado.' });
+        }
+
+        res.json(rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Não foi possível salvar a foto. Tente novamente.' });
     }
 });
 
