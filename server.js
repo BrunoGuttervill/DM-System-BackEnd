@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import produtosRouter from './routes/produtos.js';
 import producaoRouter from './routes/producao.js';
 import insumosRouter from './routes/insumos.js';
@@ -12,6 +13,7 @@ import cors from 'cors'
 const app = express();
 app.use(cors())
 app.use(express.json());
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/produtos', produtosRouter);
 app.use('/api/producao', producaoRouter);
 app.use('/api/insumos', insumosRouter);
