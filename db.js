@@ -6,7 +6,7 @@ const db = await mysql.createPool({
     port: 3306,
     user: 'root',
     database: 'dany_massas',
-    password: 'Lruthes907',
+    password: 'Amanda2335',
     dateStrings: true,
     decimalNumbers: true
 
