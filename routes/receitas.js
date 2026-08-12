@@ -17,30 +17,36 @@ router.get('/:pizzaId', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-    
-    const { pizzaId, ingredientes } = req.body;
+    const { pizzaId, custo, ingredientes } = req.body;
 
-   if (!pizzaId || !Array.isArray(ingredientes) || ingredientes.length === 0) {
-    return res.status(400).json({ error: 'pizzaId e ao menos um ingrediente são obrigatórios.' });
-}
+    if (!pizzaId || custo === undefined || !Array.isArray(ingredientes) || ingredientes.length === 0) {
+        return res.status(400).json({ error: 'pizzaId, custo e ao menos um ingrediente são obrigatórios.' });
+    }
 
     const connection = await db.getConnection();
 
-    try{
+    try {
         await connection.beginTransaction();
-        for (const item of ingredientes){
+
+        const [resultFicha] = await connection.query(
+            'INSERT INTO fichas_tecnicas (pizzaId, custo) VALUES (?, ?)',
+            [pizzaId, custo]
+        );
+        const fichaId = resultFicha.insertId;
+
+        for (const item of ingredientes) {
             await connection.query(
-                'INSERT INTO receitas (pizzaId, insumoId, qtdPorUnidade) VALUES (?, ?, ?)',
-                [pizzaId, item.insumoId, item.qtdPorUnidade]
+                'INSERT INTO receitas (fichaId, insumoId, qtdPorUnidade) VALUES (?, ?, ?)',
+                [fichaId, item.insumoId, item.qtdPorUnidade]
             );
         }
 
         await connection.commit();
-        res.status(201).json({ message: 'Receita criada com sucesso' });
+        res.status(201).json({ message: 'Ficha técnica criada com sucesso', fichaId });
 
     } catch (error) {
         await connection.rollback();
-        res.status(500).json({ message: 'Erro ao criar receita', error: error.message });
+        res.status(500).json({ message: 'Erro ao criar ficha técnica', error: error.message });
     } finally {
         connection.release();
     }
