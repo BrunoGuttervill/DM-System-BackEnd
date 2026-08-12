@@ -52,5 +52,22 @@ router.post('/', async (req, res) => {
     }
 });
 
+router.get('/', async (req, res) => {
+
+    const [rows] = await db.query(
+        `SELECT 
+        f.id,
+        f.pizzaId,
+        f.custo,
+        p.nome AS produtoNome,
+        COUNT(r.id) AS totalInsumos
+        FROM fichas_tecnicas f
+        JOIN pizzas p ON f.pizzaId = p.id
+        LEFT JOIN receitas r ON r.fichaId = f.id
+        GROUP BY f.id, f.pizzaId, f.custo, p.nome`
+    );
+    res.json(rows);
+});
+
 
 export default router;
