@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import jwt from 'jsonwebtoken'
 
 const pastaUploads = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(pastaUploads)) fs.mkdirSync(pastaUploads, { recursive: true });
@@ -81,8 +82,14 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
         }
 
+        const token = jwt.sign(
+            { id: usuario.id, perfil: usuario.perfil },
+            'chave_secreta_temporaria',
+            { expiresIn: '8h'}
+        )
+
         const { senhaHash, ...usuarioSemSenha } = usuario;
-        res.json(usuarioSemSenha);
+        res.json({ token , usuario: usuarioSemSenha });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Não foi possível fazer login. Tente novamente.' });
