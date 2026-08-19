@@ -1,6 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import db from '../db.js'
+import {verificarToken} from '../middleware/auth.js'
 
 
 
@@ -20,7 +21,7 @@ router.get('/:id', async (req, res) => {
     res.json(rows[0]);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', verificarToken, async (req, res) => {
     const camposObrigatorios = ['pizzaId', 'quantidade', 'responsavel']
     const faltando = camposObrigatorios.find(campo => !req.body[campo]);
 
