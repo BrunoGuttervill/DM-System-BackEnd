@@ -6,6 +6,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken'
+import 'dotenv/config'
 
 const pastaUploads = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(pastaUploads)) fs.mkdirSync(pastaUploads, { recursive: true });
@@ -84,7 +85,7 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign(
             { id: usuario.id, perfil: usuario.perfil },
-            'chave_secreta_temporaria',
+            process.env.JWT_SECRET,
             { expiresIn: '8h'}
         )
 
