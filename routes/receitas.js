@@ -69,5 +69,45 @@ router.get('/', async (req, res) => {
     res.json(rows);
 });
 
+router.put('/:id', async (req, res) => {
+    const fichaId = parseInt(req.params.id);
+    const { custo, ingredientes } = req.body;
+
+    if (custo === undefined || !Array.isArray(ingredientes) || ingredientes.length === 0) {
+        return res.status(400).json({ error: 'custo e ao menos um ingrediente são obrigatórios.' });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        await connection.query(
+            'UPDATE fichas_tecnicas SET custo = ? WHERE id = ?',
+            [custo, fichaId]
+        );
+
+        await connection.query(
+            'DELETE FROM receitas WHERE fichaId = ?',
+            [fichaId]
+        );
+
+        for (const item of ingredientes) {
+            await connection.query(
+                'INSERT INTO receitas (fichaId, insumoId, qtdPorUnidade) VALUES (?, ?, ?)',
+                [fichaId, item.insumoId, item.qtdPorUnidade]
+            );
+        }
+
+        await connection.commit();
+        res.json({ message: 'Ficha técnica atualizada com sucesso', fichaId });
+
+    } catch (error) {
+        await connection.rollback();
+        res.status(500).json({ message: 'Erro ao atualizar ficha técnica', error: error.message });
+    } finally {
+        connection.release();
+    }
+});
 
 export default router;
