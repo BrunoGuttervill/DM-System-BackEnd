@@ -1,6 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import db from '../db.js'
+import {verificarToken} from '../middleware/auth.js'
 
 
 router.get('/:pizzaId', async (req, res) => {
@@ -16,7 +17,7 @@ router.get('/:pizzaId', async (req, res) => {
     res.json(rows);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', verificarToken, async (req, res) => {
     const { pizzaId, custo, ingredientes } = req.body;
 
     if (!pizzaId || custo === undefined || !Array.isArray(ingredientes) || ingredientes.length === 0) {
@@ -69,7 +70,7 @@ router.get('/', async (req, res) => {
     res.json(rows);
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', verificarToken, async (req, res) => {
     const fichaId = parseInt(req.params.id);
     const { custo, ingredientes } = req.body;
 
