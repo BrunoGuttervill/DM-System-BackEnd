@@ -87,7 +87,7 @@ router.post('/', verificarToken, async (req, res) => {
     res.status(201).json(novaProducao[0]);
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', verificarToken, async (req, res) => {
     const id = parseInt(req.params.id);
     const { quantidade, responsavel, observacoes } = req.body;
 
