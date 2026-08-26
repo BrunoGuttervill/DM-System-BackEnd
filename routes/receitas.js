@@ -1,6 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import db from '../db.js'
+import {verificarToken} from '../middleware/auth.js'
 
 
 router.get('/:pizzaId', async (req, res) => {
@@ -16,35 +17,98 @@ router.get('/:pizzaId', async (req, res) => {
     res.json(rows);
 });
 
-router.post('/', async (req, res) => {
-    
-    const { pizzaId, ingredientes } = req.body;
+router.post('/', verificarToken, async (req, res) => {
+    const { pizzaId, custo, ingredientes } = req.body;
 
-   if (!pizzaId || !Array.isArray(ingredientes) || ingredientes.length === 0) {
-    return res.status(400).json({ error: 'pizzaId e ao menos um ingrediente são obrigatórios.' });
-}
+    if (!pizzaId || custo === undefined || !Array.isArray(ingredientes) || ingredientes.length === 0) {
+        return res.status(400).json({ error: 'pizzaId, custo e ao menos um ingrediente são obrigatórios.' });
+    }
 
     const connection = await db.getConnection();
 
-    try{
+    try {
         await connection.beginTransaction();
-        for (const item of ingredientes){
+
+        const [resultFicha] = await connection.query(
+            'INSERT INTO fichas_tecnicas (pizzaId, custo) VALUES (?, ?)',
+            [pizzaId, custo]
+        );
+        const fichaId = resultFicha.insertId;
+
+        for (const item of ingredientes) {
             await connection.query(
-                'INSERT INTO receitas (pizzaId, insumoId, qtdPorUnidade) VALUES (?, ?, ?)',
-                [pizzaId, item.insumoId, item.qtdPorUnidade]
+                'INSERT INTO receitas (fichaId, insumoId, qtdPorUnidade) VALUES (?, ?, ?)',
+                [fichaId, item.insumoId, item.qtdPorUnidade]
             );
         }
 
         await connection.commit();
-        res.status(201).json({ message: 'Receita criada com sucesso' });
+        res.status(201).json({ message: 'Ficha técnica criada com sucesso', fichaId });
 
     } catch (error) {
         await connection.rollback();
-        res.status(500).json({ message: 'Erro ao criar receita', error: error.message });
+        res.status(500).json({ message: 'Erro ao criar ficha técnica', error: error.message });
     } finally {
         connection.release();
     }
 });
 
+router.get('/', async (req, res) => {
+
+    const [rows] = await db.query(
+        `SELECT 
+        f.id,
+        f.pizzaId,
+        f.custo,
+        p.nome AS produtoNome,
+        COUNT(r.id) AS totalInsumos
+        FROM fichas_tecnicas f
+        JOIN pizzas p ON f.pizzaId = p.id
+        LEFT JOIN receitas r ON r.fichaId = f.id
+        GROUP BY f.id, f.pizzaId, f.custo, p.nome`
+    );
+    res.json(rows);
+});
+
+router.put('/:id', verificarToken, async (req, res) => {
+    const fichaId = parseInt(req.params.id);
+    const { custo, ingredientes } = req.body;
+
+    if (custo === undefined || !Array.isArray(ingredientes) || ingredientes.length === 0) {
+        return res.status(400).json({ error: 'custo e ao menos um ingrediente são obrigatórios.' });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        await connection.query(
+            'UPDATE fichas_tecnicas SET custo = ? WHERE id = ?',
+            [custo, fichaId]
+        );
+
+        await connection.query(
+            'DELETE FROM receitas WHERE fichaId = ?',
+            [fichaId]
+        );
+
+        for (const item of ingredientes) {
+            await connection.query(
+                'INSERT INTO receitas (fichaId, insumoId, qtdPorUnidade) VALUES (?, ?, ?)',
+                [fichaId, item.insumoId, item.qtdPorUnidade]
+            );
+        }
+
+        await connection.commit();
+        res.json({ message: 'Ficha técnica atualizada com sucesso', fichaId });
+
+    } catch (error) {
+        await connection.rollback();
+        res.status(500).json({ message: 'Erro ao atualizar ficha técnica', error: error.message });
+    } finally {
+        connection.release();
+    }
+});
 
 export default router;
