@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
     const alertas = rows.map(insumo => ({
         id: insumo.id,
         tipo: insumo.qtdAtual < insumo.qtdMin / 2 ? 'critico' : 'atencao',
-        icon: insumo.qtdAtual < insumo.qtdMin / 2 ? 'critico' : 'atencao',  // ← muda emoji pra chave
+        icon: insumo.qtdAtual < insumo.qtdMin / 2 ? 'critico' : 'atencao',
         titulo: `${insumo.nome} - Estoque baixo`,
         desc: `${insumo.nome} possui apenas ${insumo.qtdAtual} ${insumo.unidade} restantes em estoque.`,
     }))
