@@ -155,6 +155,109 @@ router.put('/:id', verificarToken, async (req, res) => {
     }
 });
 
+router.post('/insumo', verificarToken,  async (req, res)=> {
+    const camposObrigatorios = ['insumoId', 'quantidadeLotes', 'responsavel']
+    const faltando = camposObrigatorios.find(campo => !req.body[campo]);
+
+    if(faltando) {
+        return res.status(400).json({ error: `O campo ${faltando} é obrigatório.` });
+    }
+
+    const { insumoId, quantidadeLotes, responsavel, observacoes} = req.body;
+    
+    if(quantidadeLotes <= 0) {
+        return res.status(400).json({ error: 'A quantidade de lotes deve ser maior que zero.' });
+    }
+
+    const connection = await db.getConnection();
+
+    try{
+        await connection.beginTransaction();
+
+        const[fichaResult] = await connection.query(
+            'SELECT id, rendimento FROM fichas_tecnicas WHERE insumoId = ?',
+            [insumoId]
+        );
+
+        if(fichaResult.length ===0) {
+            await connection.rollback();
+            return res.status(404).json({ error: 'Ficha técnica não encontrada para o insumo fornecido.' });
+        }
+
+        const ficha = fichaResult[0];
+
+        if(!ficha.rendimento || ficha.rendimento <=0 ){
+            await connection.rollback();
+            return res.status(400).json({ error: 'Rendimento inválido na ficha técnica.' });
+        }
+
+        
+        const[ingredientes] = await connection.query(
+            `SELECT r.qtdPorUnidade, i.id AS insumoId, i.nome, i.unidade, i.qtdAtual
+             FROM receitas r
+             JOIN insumos i ON r.insumoId = i.id
+             WHERE r.fichaId = ?`,
+            [ficha.id]
+        );
+
+        if(ingredientes.length === 0){
+            await connection.rollback();
+            return res.status(400).json({ error: 'a ficha existe mais não tem ingrediente cadastrado. '})
+        }
+
+        for(const ing of ingredientes) {
+            const qtdTotal = Math.round(ing.qtdPorUnidade * quantidadeLotes * 1000) / 1000;
+        
+            if(qtdTotal > ing.qtdAtual){
+                await connection.rollback();
+                return res.status(400).json({
+                    error: `Estoque insuficiente para o insumo ${ing.nome}`,
+                    necessario: `${qtdTotal} ${ing.unidade}`,
+                    disponivel: `${ing.qtdAtual} ${ing.unidade}`,
+                })
+
+            }
+        
+        }
+
+        const consumidos = [];
+        for(const ing of ingredientes) {
+            const qtdTotal = Math.round(ing.qtdPorUnidade * quantidadeLotes * 1000) / 1000;
+            
+            await connection.query(
+                'UPDATE insumos SET qtdAtual = qtdAtual - ? WHERE id = ?',
+                [qtdTotal, ing.insumoId]
+            );
+
+            consumidos.push(`${qtdTotal} ${ing.unidade} de ${ing.nome}`);
+        }
+
+        const qtdProduzida = ficha.rendimento * quantidadeLotes;
+
+        await connection.query(
+            `UPDATE insumos SET qtdAtual = qtdAtual + ? WHERE id = ?`,
+            [qtdProduzida, insumoId]
+        )
+
+        const insumosTexto = consumidos.join(', ');
+
+        const [result] = await connection.query(
+            `INSERT INTO producoes (pizzaId, insumoId, produto, qtd , responsavel, insumos, observacoes)
+            VALUES (?, ?, ?, ?, ? , ?, ?)`,
+            [null, insumoId, 'Massa de Pizza', qtdProduzida, responsavel, insumosTexto, observacoes ?? null]
+        );
+
+        await connection.commit();
+        const [novaProducao] = await connection.query('SELECT * FROM producoes WHERE id = ?', [result.insertId]);
+        res.status(201).json(novaProducao[0]);
+
+    } catch(error) {
+        await connection.rollback();
+        res.status(500).json({ error: 'Erro ao processar a produção do insumo.', detalhe: error.message });
+    } finally {
+        connection.release();
+    }
+})
 
 
-export default router;
+export default router; 

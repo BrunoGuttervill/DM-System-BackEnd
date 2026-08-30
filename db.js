@@ -1,8 +1,6 @@
 import mysql from 'mysql2/promise'
 import 'dotenv/config'
 
-console.log('SENHA LIDA:', JSON.stringify(process.env.DB_PASSWORD))
-
 let db
 try {
   db = await mysql.createPool({
