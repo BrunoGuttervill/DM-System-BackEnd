@@ -6,6 +6,8 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
+import nodemailer from 'nodemailer'
 import 'dotenv/config'
 
 const pastaUploads = path.join(process.cwd(), 'uploads');
@@ -27,6 +29,14 @@ const upload = multer({
             return cb(new Error('Arquivo precisa ser uma imagem.'));
         }
         cb(null, true);
+    },
+});
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
     },
 });
 
@@ -94,6 +104,96 @@ router.post('/login', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Não foi possível fazer login. Tente novamente.' });
+    }
+});
+
+// POST /api/usuario/esqueci-senha — gera um token temporário e envia por e-mail
+router.post('/esqueci-senha', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: 'Informe seu e-mail.' });
+    }
+
+    try {
+        const [rows] = await db.query('SELECT id, nome FROM usuarios WHERE email = ?', [email]);
+
+        // Por segurança, responde "ok" mesmo se o e-mail não existir no banco —
+        // assim ninguém consegue descobrir quais e-mails estão cadastrados testando aqui.
+        if (rows.length === 0) {
+            return res.json({ ok: true });
+        }
+
+        const usuario = rows[0];
+        const token = crypto.randomBytes(32).toString('hex');
+        const expira = new Date(Date.now() + 30 * 60 * 1000); // 30 minutos
+
+        await db.query(
+            'UPDATE usuarios SET resetToken = ?, resetTokenExpira = ? WHERE id = ?',
+            [token, expira, usuario.id]
+        );
+
+        const linkReset = `http://localhost:5173/?token=${token}`;
+
+        await transporter.sendMail({
+            from: `"Dany Massas" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: 'Redefinição de senha — MassaStock',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+                <h2 style="color:#6B1A2A; margin-bottom: 4px;">Dany Massas</h2>
+                <p style="color:#8A7060; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-top:0;">Controle de Estoque</p>
+                <hr style="border:none; border-top:1px solid #eee; margin: 20px 0;" />
+                <p>Olá, ${usuario.nome}!</p>
+                <p>Recebemos um pedido para redefinir sua senha no MassaStock. Clique no botão abaixo para criar uma nova senha:</p>
+                <p style="text-align:center; margin: 28px 0;">
+                  <a href="${linkReset}" style="background:#6B1A2A; color:#fff; padding:12px 28px; border-radius:8px; text-decoration:none; display:inline-block; font-weight:bold;">
+                    Redefinir minha senha
+                  </a>
+                </p>
+                <p style="color:#888; font-size:13px;">Esse link expira em <strong>30 minutos</strong>. Se você não pediu essa redefinição, pode ignorar este e-mail com segurança.</p>
+              </div>
+            `,
+        });
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Não foi possível enviar o e-mail. Tente novamente.' });
+    }
+});
+
+// POST /api/usuario/resetar-senha — valida o token e salva a nova senha
+router.post('/resetar-senha', async (req, res) => {
+    const { token, novaSenha } = req.body;
+
+    if (!token || !novaSenha) {
+        return res.status(400).json({ error: 'Link inválido.' });
+    }
+    if (novaSenha.length < 6) {
+        return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 6 caracteres.' });
+    }
+
+    try {
+        const [rows] = await db.query(
+            'SELECT id FROM usuarios WHERE resetToken = ? AND resetTokenExpira > NOW()',
+            [token]
+        );
+
+        if (rows.length === 0) {
+            return res.status(400).json({ error: 'Link inválido ou expirado. Solicite um novo.' });
+        }
+
+        const novaSenhaHash = await bcrypt.hash(novaSenha, 10);
+        await db.query(
+            'UPDATE usuarios SET senhaHash = ?, resetToken = NULL, resetTokenExpira = NULL WHERE id = ?',
+            [novaSenhaHash, rows[0].id]
+        );
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Não foi possível redefinir a senha. Tente novamente.' });
     }
 });
 
