@@ -3,6 +3,16 @@ const router = express.Router();
 import db from '../db.js';
 
 
+router.get('/produziveis', async (req, res)=> {
+    const [rows] = await db.query(`
+        SELECT DISTINCT i.id, i.nome, i.unidade
+        FROM insumos i 
+        JOIN fichas_tecnicas f ON f.insumoId = i.id`
+    );
+    res.json(rows);
+})
+
+
 // Retorna a lista completa de todos os insumos (ingredientes) do estoque.
 router.get('/', async (req, res) => {
     const [rows] = await db.query('SELECT * FROM insumos');
@@ -111,5 +121,6 @@ router.delete('/:id', async (req, res) => {
 
     res.status(204).send();
 });
+
 
 export default router;
