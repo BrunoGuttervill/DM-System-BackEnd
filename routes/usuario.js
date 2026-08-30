@@ -136,9 +136,11 @@ router.post('/esqueci-senha', async (req, res) => {
         const linkReset = `http://localhost:5173/?token=${token}`;
 
         await transporter.sendMail({
-            from: `"Dany Massas" <${process.env.EMAIL_USER}>`,
+            from: `"Dany Massas - MassaStock" <${process.env.EMAIL_USER}>`,
             to: email,
-            subject: 'Redefinição de senha — MassaStock',
+            subject: 'Sua solicitação de redefinição de senha',
+            replyTo: process.env.EMAIL_USER,
+            text: `Olá, ${usuario.nome}!\n\nRecebemos um pedido para redefinir sua senha no MassaStock.\n\nAcesse o link abaixo para criar uma nova senha (válido por 30 minutos):\n${linkReset}\n\nSe você não pediu essa redefinição, pode ignorar este e-mail com segurança.\n\n— Equipe Dany Massas`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
                 <h2 style="color:#6B1A2A; margin-bottom: 4px;">Dany Massas</h2>
@@ -152,6 +154,8 @@ router.post('/esqueci-senha', async (req, res) => {
                   </a>
                 </p>
                 <p style="color:#888; font-size:13px;">Esse link expira em <strong>30 minutos</strong>. Se você não pediu essa redefinição, pode ignorar este e-mail com segurança.</p>
+                <hr style="border:none; border-top:1px solid #eee; margin: 20px 0;" />
+                <p style="color:#aaa; font-size:11px;">Este é um e-mail automático enviado pelo sistema MassaStock — Dany Massas, Canoinhas/SC.</p>
               </div>
             `,
         });
