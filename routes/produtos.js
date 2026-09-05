@@ -2,16 +2,24 @@ import express from 'express';
 import db from '../db.js'
 const router = express.Router();
 
+function comStatusCalculado(pizza) {
+    let status;
+    if (pizza.qtd <= 0) status = 'critico';
+    else if (pizza.qtd <= pizza.qtdMin) status = 'baixo';
+    else status = 'ok';
+    return { ...pizza, status };
+}
+
 // Retorna a lista completa de todas as pizzas cadastradas no sistema. 
 router.get('/', async (req, res) => {
     const [rows] = await db.query('SELECT * FROM pizzas');
 
-    rows.forEach(pizza => {
-        pizza.sabores = JSON.parse(pizza.sabores)
-
+    const pizzasComStatus = rows.map(pizza => {
+        pizza.sabores = JSON.parse(pizza.sabores);
+        return comStatusCalculado(pizza);
     });
 
-    res.json(rows);
+    res.json(pizzasComStatus);
 });
 
 router.get('/:id', async (req, res) => {
@@ -21,18 +29,23 @@ router.get('/:id', async (req, res) => {
     if (rows.length === 0) {
         return res.status(404).json({ error: 'Pizza não encontrada.' });
     }
-    res.json(rows[0]);
+
+    const pizza = rows[0];
+    pizza.sabores = JSON.parse(pizza.sabores);
+    res.json(comStatusCalculado(pizza));
 });
 
 
 //Cadastra uma nova pizza no sistema.
 router.post('/', async (req, res) => {
-    const camposObrigatorios = ['nome', 'tipo', 'sabores', 'qtd', 'precoVarejo', 'precoAtacado', 'status'];
-    const faltando = camposObrigatorios.find(campo => !req.body[campo]);
+    const camposObrigatorios = ['nome', 'tipo', 'sabores', 'qtd', 'precoVarejo', 'precoAtacado'];
+    const faltando = camposObrigatorios.find(campo => req.body[campo] === undefined);
 
     if (faltando) {
         return res.status(400).json({ error: `O campo ${faltando} é obrigatório.` });
     }
+
+    const qtdMin = req.body.qtdMin !== undefined ? req.body.qtdMin : 5;
 
     const novaPizza = {
         nome: req.body.nome,
@@ -41,24 +54,29 @@ router.post('/', async (req, res) => {
         qtd: req.body.qtd,
         precoVarejo: req.body.precoVarejo,
         precoAtacado: req.body.precoAtacado,
-        status: req.body.status
+        qtdMin,
     };
 
 
-    const [result] = await db.query('INSERT INTO pizzas (nome, tipo, sabores, qtd, precoVarejo, precoAtacado, status) VALUES (?, ?, ?, ?, ?, ?, ?)', [
-        novaPizza.nome,
-        novaPizza.tipo,
-        JSON.stringify(req.body.sabores),
-        novaPizza.qtd,
-        novaPizza.precoVarejo,
-        novaPizza.precoAtacado,
-        novaPizza.status
-    ]
+    const [result] = await db.query(
+        'INSERT INTO pizzas (nome, tipo, sabores, qtd, precoVarejo, precoAtacado, qtdMin, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+            novaPizza.nome,
+            novaPizza.tipo,
+            JSON.stringify(req.body.sabores),
+            novaPizza.qtd,
+            novaPizza.precoVarejo,
+            novaPizza.precoAtacado,
+            novaPizza.qtdMin,
+            'ok', // valor inicial só pra manter a coluna preenchida — o status real é sempre recalculado ao consultar
+        ]
     );
     const idGerado = result.insertId;
 
     const [rows] = await db.query('SELECT * FROM pizzas WHERE id = ?', [idGerado]);
-    res.status(201).json(rows[0]);
+    const pizza = rows[0];
+    pizza.sabores = JSON.parse(pizza.sabores);
+    res.status(201).json(comStatusCalculado(pizza));
 });
 
 router.put('/:id', async (req, res) => {
@@ -93,6 +111,10 @@ router.put('/:id', async (req, res) => {
         campos.push('precoAtacado = ?');
         valores.push(req.body.precoAtacado);
     }
+    if (req.body.qtdMin !== undefined) {
+        campos.push('qtdMin = ?');
+        valores.push(req.body.qtdMin);
+    }
     if (req.body.status !== undefined) {
         campos.push('status = ?');
         valores.push(req.body.status);
@@ -114,7 +136,9 @@ router.put('/:id', async (req, res) => {
     }
 
     const [rows] = await db.query('SELECT * FROM pizzas WHERE id = ?', [id]);
-    res.status(200).json(rows[0]);
+    const pizza = rows[0];
+    pizza.sabores = JSON.parse(pizza.sabores);
+    res.status(200).json(comStatusCalculado(pizza));
 
 });
 
