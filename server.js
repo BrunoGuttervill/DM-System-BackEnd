@@ -9,6 +9,7 @@ import alertasRouter from './routes/alertas.js';
 import movimentacoesRouter from './routes/movimentacoes.js';
 import receitasRouter from './routes/receitas.js';
 import usuarioRouter from './routes/usuario.js';
+import vendasRouter from './routes/vendas.js';
 import cors from 'cors'
 
 const app = express();
@@ -23,6 +24,7 @@ app.use('/api/alertas', alertasRouter);
 app.use('/api/movimentacoes', movimentacoesRouter);
 app.use('/api/receitas', receitasRouter);
 app.use('/api/usuario', usuarioRouter);
+app.use('/api/vendas', vendasRouter);
 
 
 app.listen(3000, () => console.log('Servidor rodando em http://localhost:3000'));
