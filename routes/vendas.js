@@ -3,6 +3,7 @@ const router = express.Router();
 import db from '../db.js';
 import { verificarToken } from '../middleware/auth.js';
 
+// GET /api/vendas — lista vendas com resumo
 router.get('/', async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -20,6 +21,7 @@ router.get('/', async (req, res) => {
     }
 });
 
+// GET /api/vendas/:id — detalhe dos itens de uma venda
 router.get('/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     try {
@@ -36,6 +38,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// POST /api/vendas — registra uma venda com 1+ itens, descontando o estoque
 router.post('/', verificarToken, async (req, res) => {
     const { responsavel, formaPagamento, observacoes, itens } = req.body;
 
@@ -58,6 +61,8 @@ router.post('/', verificarToken, async (req, res) => {
                 throw { status: 400, message: 'Cada item precisa de produtoId, quantidade e precoUnitario válidos.' };
             }
 
+            // FOR UPDATE trava a linha do produto até o fim da transação —
+            // evita que duas vendas simultâneas vendam o mesmo estoque duas vezes.
             const [produtoRows] = await connection.query(
                 'SELECT id, nome, qtd FROM pizzas WHERE id = ? FOR UPDATE',
                 [produtoId]
@@ -104,6 +109,45 @@ router.post('/', verificarToken, async (req, res) => {
         const status = error.status || 500;
         if (!error.status) console.error(error);
         res.status(status).json({ error: error.message || 'Erro ao registrar venda.' });
+    } finally {
+        connection.release();
+    }
+});
+
+// DELETE /api/vendas/:id — exclui uma venda e devolve o estoque dos produtos
+router.delete('/:id', verificarToken, async (req, res) => {
+    const id = parseInt(req.params.id);
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const [vendaExiste] = await connection.query('SELECT id FROM vendas WHERE id = ?', [id]);
+        if (vendaExiste.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: 'Venda não encontrada.' });
+        }
+
+        const [itens] = await connection.query(
+            'SELECT produtoId, quantidade FROM itens_venda WHERE vendaId = ?',
+            [id]
+        );
+
+        for (const item of itens) {
+            await connection.query(
+                'UPDATE pizzas SET qtd = qtd + ? WHERE id = ?',
+                [item.quantidade, item.produtoId]
+            );
+        }
+
+        await connection.query('DELETE FROM vendas WHERE id = ?', [id]);
+
+        await connection.commit();
+        res.status(204).send();
+    } catch (error) {
+        await connection.rollback();
+        console.error(error);
+        res.status(500).json({ error: 'Erro ao excluir venda.' });
     } finally {
         connection.release();
     }
